@@ -3,7 +3,7 @@
 # app_bundler.sh
 # Before running the script ensure its executable: chmod +x app_bundler.sh (This will make the script executable)
 # Usage: ./app_bundler.sh <APP_NAME> <BUNDLE_ID> <VERSION> <EXECUTABLE_PATH> <ICON_PATH>
-# Example: ./app_bundler.sh CoolApp com.example.example_app 1.0 ./build/app ./ASSETS/icon.icns
+# Example: ./app_bundler.sh CoolApp com.example.example_app 1.0 ./build/app ./ASSETS/icon.png
 
 set -euo pipefail
 
@@ -29,20 +29,46 @@ mkdir -p "${RESOURCES_DIR}"
 cp "${EXECUTABLE_PATH}" "${MACOS_DIR}/${APP_NAME}"
 chmod +x "${MACOS_DIR}/${APP_NAME}"
 
-ICON_NAME=$(basename "${ICON_SOURCE}")
-ICON_BASE="${ICON_NAME%.*}"
-
-if [[ "${ICON_SOURCE}" == *.png ]]; then
-  ICONSET_DIR="${RESOURCES_DIR}/${ICON_BASE}.iconset"
-  mkdir -p "${ICONSET_DIR}"
-  for size in 16 32 64 128 256 512; do
-    sips -z $size $size "${ICON_SOURCE}" --out "${ICONSET_DIR}/icon_${size}x${size}.png"
-    sips -z $(($size*2)) $(($size*2)) "${ICON_SOURCE}" --out "${ICONSET_DIR}/icon_${size}x${size}@2x.png"
-  done
-  iconutil -c icns "${ICONSET_DIR}" --output "${RESOURCES_DIR}/${ICON_BASE}.icns"
-else
-  cp "${ICON_SOURCE}" "${RESOURCES_DIR}/${ICON_NAME}"
+if [[ "${ICON_SOURCE}" != *.png ]]; then
+  echo "Error: Only .png files are supported."
+  exit 1
 fi
+
+ICON_BASENAME=$(basename "${ICON_SOURCE}" .png)
+TEMP_ICONSET="/tmp/${ICON_BASENAME}.iconset"
+mkdir -p "${TEMP_ICONSET}"
+
+echo "Generating iconset from ${ICON_SOURCE}..."
+
+# resize image using sips
+generate_icon() {
+    local size=$1
+    local filename=$2
+    sips -z $size $size "${ICON_SOURCE}" --out "${TEMP_ICONSET}/${filename}" > /dev/null
+}
+
+# generate standard icon sizes
+generate_icon 16 "icon_16x16.png"
+generate_icon 32 "icon_16x16@2x.png"
+generate_icon 32 "icon_32x32.png"
+generate_icon 64 "icon_32x32@2x.png"
+generate_icon 128 "icon_128x128.png"
+generate_icon 256 "icon_128x128@2x.png"
+generate_icon 256 "icon_256x256.png"
+generate_icon 512 "icon_256x256@2x.png"
+generate_icon 512 "icon_512x512.png"
+generate_icon 1024 "icon_512x512@2x.png"
+generate_icon 1024 "icon_1024x1024.png"
+
+echo "Converting iconset to .icns..."
+if iconutil -c icns "${TEMP_ICONSET}" -o "${RESOURCES_DIR}/${ICON_BASENAME}.icns"; then
+    echo "Icon conversion successful."
+    FINAL_ICON_NAME="${ICON_BASENAME}.icns"
+else
+    echo "Error: iconutil failed."
+    exit 1
+fi
+rm -rf "${TEMP_ICONSET}"
 
 # Info.plist
 cat > "${CONTENTS_DIR}/Info.plist" <<EOF
@@ -63,7 +89,7 @@ cat > "${CONTENTS_DIR}/Info.plist" <<EOF
   <key>CFBundleExecutable</key>
   <string>${APP_NAME}</string>
   <key>CFBundleIconFile</key>
-  <string>${ICON_BASE}.icns</string>
+  <string>${FINAL_ICON_NAME}</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleInfoDictionaryVersion</key>
