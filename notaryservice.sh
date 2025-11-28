@@ -40,8 +40,4 @@ elif [[ "$MODE" == "2" ]]; then
     --keychain-profile "${KEYCHAIN_PROFILE}" --wait
 fi
 
-
-echo "Stapling ticket to ${APP_PATH}"
-xcrun stapler staple "${APP_PATH}"
-
-echo "Notary service workflow completed for ${APP_PATH}"
+echo "Notary service workflow completed for ${APP_PATH} don't forget to staple the ticket!"
